@@ -244,3 +244,30 @@ class TrainingEntry(BaseModel):
     field_5: str | None = None  # 考核通过
     field_6: str | None = None  # 培训资料
     field_7: str | None = None  # 培训状态
+
+
+class TrainingBoardTopic(BaseModel):
+    """主题看板单列：按培训主题聚合的汇总数据，与明细共用同一份记录。"""
+
+    topic: str
+    arranged: bool
+    record_count: int
+    latest_date: str | None = None
+    latest_trainer: str | None = None
+    attend_total: int = 0
+    pass_total: int = 0
+    completion_rate: float = 0.0
+    retrain_due: int = 0
+    items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class TrainingListResult(BaseModel):
+    """安全培训列表响应：明细分页与主题看板、统计卡片一并返回，保证口径一致。"""
+
+    items: list[dict[str, Any]]
+    total: int
+    page: int = 1
+    size: int = 20
+    topics: list[TrainingBoardTopic] = Field(default_factory=list)
+    retrain_due_total: int = 0
+    stats: dict[str, Any] = Field(default_factory=dict)

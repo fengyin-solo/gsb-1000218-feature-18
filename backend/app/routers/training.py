@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.schemas import ActionResult, EntryPayload, PageResult
+from app.schemas import ActionResult, EntryPayload, TrainingListResult
 from app.services.training import TrainingService
 
 router = APIRouter(prefix="/api/training", tags=["安全培训"])
@@ -16,18 +16,32 @@ LIST_FIELDS = ["培训编号", "培训主题", "培训讲师", "培训日期", "
 STATUSES = ["计划中", "已组织", "已完成", "需补训"]
 
 
-@router.get("", response_model=PageResult[dict])
+@router.get("", response_model=TrainingListResult)
 def list_entries(
     keyword: str | None = Query(default=None, description="按培训编号检索"),
+    trainer: str | None = Query(default=None, description="按培训讲师检索"),
+    topic: str | None = Query(default=None, description="按培训主题筛选（看板主题点击后透传）"),
     status: str | None = Query(default=None, description="计划中、已组织、已完成、需补训"),
     page: int = 1,
     size: int = 20,
-) -> PageResult[dict]:
-    """按培训编号与状态过滤安全培训列表；没有数据时返回空页，不报错。"""
+) -> TrainingListResult:
+    """按编号、讲师、主题与状态过滤；明细分页与主题看板共用同一份筛选结果。"""
     if size > 200:
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
-    items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
-    return PageResult(items=items, total=total, page=page, size=size)
+    payload = service.list_entries(keyword=keyword, trainer=trainer, topic=topic, status=status, page=page, size=size)
+    return TrainingListResult(**payload)
+
+
+@router.get("/export")
+def export_entries(
+    keyword: str | None = None,
+    trainer: str | None = None,
+    topic: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
+    """导出安全培训清单：返回当前过滤条件下的全量数据。"""
+    payload = service.list_entries(keyword=keyword, trainer=trainer, topic=topic, status=status, page=1, size=10000)
+    return {"module": "training", "total": payload["total"], "items": payload["items"]}
 
 
 @router.get("/{entry_id}", response_model=dict)
@@ -56,10 +70,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出安全培训清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "training", "total": total, "items": items}
